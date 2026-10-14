@@ -136,15 +136,79 @@ function renderMarkets() {
   if (activeStat) activeStat.innerText = activeCount.toString();
 }
 
-function toggleWallet() {
+// GenLayer Testnet Bradbury Configuration
+const GENLAYER_CHAIN_CONFIG = {
+  chainId: "0x107D", // 4221 in hex
+  chainName: "GenLayer Testnet Bradbury",
+  nativeCurrency: {
+    name: "GEN",
+    symbol: "GEN",
+    decimals: 18
+  },
+  rpcUrls: ["https://rpc-bradbury.genlayer.com"],
+  blockExplorerUrls: ["https://explorer.testnet-chain.genlayer.com"]
+};
+
+async function toggleWallet() {
   const btn = document.getElementById("walletText");
-  if (!userAccount) {
-    userAccount = "0x4F8...a9B2";
-    btn.innerText = userAccount;
-    alert("Connected to GenLayer Testnet!\nAddress: 0x4F8e32D8F796C4B82b7C8A9eD93E4f7B1422a9B2");
-  } else {
+
+  if (userAccount) {
     userAccount = null;
-    btn.innerText = "Connect GenLayer Wallet";
+    btn.innerText = "Connect Rabby / Wallet";
+    return;
+  }
+
+  if (typeof window.ethereum === "undefined") {
+    alert("No Web3 wallet detected! Please install Rabby Wallet (https://rabby.io) or an EVM wallet.");
+    return;
+  }
+
+  try {
+    // 1. Request account connection
+    const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+    if (!accounts || accounts.length === 0) {
+      alert("No accounts found. Please unlock Rabby.");
+      return;
+    }
+
+    userAccount = accounts[0];
+
+    // 2. Try switching / adding GenLayer network
+    try {
+      await window.ethereum.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: GENLAYER_CHAIN_CONFIG.chainId }]
+      });
+    } catch (switchError) {
+      // Error code 4902 indicates chain not yet added
+      if (switchError.code === 4902 || switchError.data?.originalError?.code === 4902) {
+        await window.ethereum.request({
+          method: "wallet_addEthereumChain",
+          params: [GENLAYER_CHAIN_CONFIG]
+        });
+      }
+    }
+
+    // Format address display
+    const shortAddr = userAccount.slice(0, 6) + "..." + userAccount.slice(-4);
+    btn.innerText = shortAddr;
+
+    // Listen for account / chain changes
+    if (window.ethereum.on) {
+      window.ethereum.on("accountsChanged", (newAccounts) => {
+        if (!newAccounts.length) {
+          userAccount = null;
+          btn.innerText = "Connect Rabby / Wallet";
+        } else {
+          userAccount = newAccounts[0];
+          btn.innerText = userAccount.slice(0, 6) + "..." + userAccount.slice(-4);
+        }
+      });
+    }
+
+  } catch (err) {
+    console.error("Wallet connection failed:", err);
+    alert("Connection error: " + (err.message || err));
   }
 }
 
@@ -205,63 +269,3 @@ function submitBet() {
 
 function handleCreateMarket() {
   const question = document.getElementById("newQuestion").value.trim();
-  const url = document.getElementById("newResolutionUrl").value.trim();
-  const criteria = document.getElementById("newCriteria").value.trim();
-  const seed = parseInt(document.getElementById("newInitialBet").value) || 50;
-
-  if (!question || !url || !criteria) {
-    alert("Please fill in all market parameters.");
-    return;
-  }
-
-  const newId = markets.length;
-  markets.unshift({
-    id: newId,
-    creator: userAccount || "0x4F8...a9B2",
-    question: question,
-    resolution_url: url,
-    resolution_criteria: criteria,
-    resolved: false,
-    outcome: "PENDING",
-    yes_pool: seed,
-    no_pool: seed,
-    verdict_reasoning: ""
-  });
-
-  renderMarkets();
-  closeModal("createMarketModal");
-  alert(`Market #${newId} deployed to GenLayer Intelligent Contract!`);
-}
-
-function simulateResolution(marketId) {
-  const m = markets.find(x => x.id === marketId);
-  if (!m) return;
-
-  const confirmRun = confirm(
-    `Simulate GenLayer Intelligent Contract Resolution for Market #${marketId}?\n\n1. gl.get_webpage("${m.resolution_url}")\n2. gl.exec_prompt() consensus over criteria.`
-  );
-
-  if (!confirmRun) return;
-
-  // Simulate on-chain validator consensus execution
-  const simulatedOutcome = Math.random() > 0.4 ? "YES" : "NO";
-  m.resolved = true;
-  m.outcome = simulatedOutcome;
-  m.verdict_reasoning = `GenLayer validators independently fetched ${m.resolution_url} and executed LLM consensus prompt. Result determined as ${simulatedOutcome} based on matched criteria.`;
-
-  renderMarkets();
-  alert(`Market #${marketId} settled autonomously by GenLayer Intelligent Contract!\n\nOutcome: ${simulatedOutcome}\nReasoning: ${m.verdict_reasoning}`);
-}
-
-function claimWinnings(marketId) {
-  alert(`Checking bet claims on GenLayer contract for Market #${marketId}...\nPayout distributed to your address!`);
-}
-
-function showContractInfo() {
-  alert("Intelligent Contract: contract.py\nLanguage: Python (GenLayer SDK)\nMethods: create_market, bet, resolve_market (gl.get_webpage + gl.exec_prompt), claim");
-}
-
-// Initial render
-window.addEventListener("DOMContentLoaded", () => {
-  renderMarkets();
-});
