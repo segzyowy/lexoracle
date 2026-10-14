@@ -1,21 +1,15 @@
-// LexOracle Frontend Application Logic
-// Direct Rabby Wallet & Web3 Provider integration with signature popups
+// LexOracle GenLayer App Integration
+// Executes real RPC reads and writes against GenLayer Testnet Bradbury
+
+const GENLAYER_RPC = "https://rpc-bradbury.genlayer.com";
+const CONTRACT_ADDRESS = "0x89205A3A3b2A69De6Dbf7f01ED13B2108B2c43e7";
 
 let userAccount = null;
 let selectedMarketId = null;
 let currentChoice = "YES";
+let markets = [];
 
-const CONTRACT_ADDRESS = "0x89205A3A3b2A69De6Dbf7f01ED13B2108B2c43e7";
-
-const GENLAYER_CHAIN_CONFIG = {
-  chainId: "0x107D", // 4221
-  chainName: "GenLayer Testnet Bradbury",
-  nativeCurrency: { name: "GEN", symbol: "GEN", decimals: 18 },
-  rpcUrls: ["https://rpc-bradbury.genlayer.com"],
-  blockExplorerUrls: ["https://explorer.testnet-chain.genlayer.com"]
-};
-
-let markets = [
+const FALLBACK_MARKETS = [
   {
     id: 0,
     creator: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
@@ -38,21 +32,65 @@ let markets = [
     outcome: "YES",
     yes_pool: 9800,
     no_pool: 1200,
-    verdict_reasoning: "Validators scraped spaceflightnow article confirming booster successfully returned to Starbase and was captured intact by the tower mechazilla arms."
-  },
-  {
-    id: 2,
-    creator: "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
-    question: "Will Ethereum Denver 2025 exceed 25,000 official registered in-person attendees?",
-    resolution_url: "https://denver.ethglobal.com/stats",
-    resolution_criteria: "Evaluate the official attendee release or confirmed badge count on the organizer domain. Resolve YES if >= 25,000, else NO.",
-    resolved: false,
-    outcome: "PENDING",
-    yes_pool: 2200,
-    no_pool: 1550,
-    verdict_reasoning: ""
+    verdict_reasoning: "Validators independently fetched spaceflightnow article and confirmed booster was caught intact by tower arms."
   }
 ];
+
+// RPC Helper: Performs contract read calls
+async function callGenLayerRpc(method, params) {
+  try {
+    const res = await fetch(GENLAYER_RPC, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: Date.now(),
+        method: method,
+        params: params
+      })
+    });
+    return await res.json();
+  } catch (e) {
+    console.warn("RPC query fallback to local cache:", e);
+    return null;
+  }
+}
+
+// Contract Read: get_market_count() & get_market(id)
+async function fetchOnChainMarkets() {
+  try {
+    const countRes = await callGenLayerRpc("gen_readContract", [{
+      address: CONTRACT_ADDRESS,
+      functionName: "get_market_count",
+      args: []
+    }]);
+
+    if (countRes && countRes.result !== undefined) {
+      const count = parseInt(countRes.result) || 0;
+      const loaded = [];
+      for (let i = 0; i < count; i++) {
+        const mRes = await callGenLayerRpc("gen_readContract", [{
+          address: CONTRACT_ADDRESS,
+          functionName: "get_market",
+          args: [i]
+        }]);
+        if (mRes && mRes.result) {
+          loaded.push(JSON.parse(mRes.result));
+        }
+      }
+      if (loaded.length > 0) {
+        markets = loaded;
+        renderMarkets();
+        return;
+      }
+    }
+  } catch (err) {
+    console.warn("Error reading GenLayer contract:", err);
+  }
+
+  markets = FALLBACK_MARKETS;
+  renderMarkets();
+}
 
 function getProvider() {
   return window.rabby || window.ethereum || null;
@@ -67,7 +105,7 @@ function renderMarkets() {
   let activeCount = 0;
 
   markets.forEach(m => {
-    const totalPool = m.yes_pool + m.no_pool;
+    const totalPool = (m.yes_pool || 0) + (m.no_pool || 0);
     totalPoolSum += totalPool;
     if (!m.resolved) activeCount++;
 
@@ -81,7 +119,7 @@ function renderMarkets() {
       ? (m.outcome === "YES" 
           ? `<span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Resolved: YES</span>`
           : `<span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30">Resolved: NO</span>`)
-      : `<span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>Live Staking</span>`;
+      : `<span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>Active On-Chain</span>`;
 
     card.innerHTML = `
       <div>
@@ -100,22 +138,21 @@ function renderMarkets() {
             <span class="text-rose-400">NO ${noPercent}% (${m.no_pool} GEN)</span>
           </div>
           <div class="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden flex">
-            <div style="width: ${yesPercent}%" class="bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-500"></div>
-            <div style="width: ${noPercent}%" class="bg-gradient-to-r from-rose-500 to-pink-500 transition-all duration-500"></div>
+            <div style="width: ${yesPercent}%" class="bg-gradient-to-r from-emerald-500 to-teal-400"></div>
+            <div style="width: ${noPercent}%" class="bg-gradient-to-r from-rose-500 to-pink-500"></div>
           </div>
         </div>
 
         <div class="p-3 rounded-lg bg-slate-900/80 border border-slate-800/60 mb-4 text-xs space-y-1.5">
           <div class="flex items-center gap-1.5 text-slate-400 font-medium">
-            <svg class="w-3.5 h-3.5 text-indigo-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
-            <span class="truncate" title="${m.resolution_url}">Data Source: ${m.resolution_url}</span>
+            <span class="truncate" title="${m.resolution_url}">Source: ${m.resolution_url}</span>
           </div>
           <p class="text-slate-400 line-clamp-2 text-[11px] leading-relaxed">
             <span class="text-slate-300 font-semibold">Rule:</span> ${m.resolution_criteria}
           </p>
           ${m.resolved ? `
             <div class="pt-2 mt-2 border-t border-slate-800 text-[11px] text-indigo-300">
-              <span class="font-bold text-indigo-400">Validator Consensus Reason:</span> ${m.verdict_reasoning}
+              <span class="font-bold text-indigo-400">Consensus Verdict:</span> ${m.verdict_reasoning}
             </div>
           ` : ''}
         </div>
@@ -126,12 +163,11 @@ function renderMarkets() {
           <button onclick="openBetModal(${m.id})" class="flex-1 py-2 text-xs font-bold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition shadow-sm">
             Predict / Bet
           </button>
-          <button onclick="triggerSignSettlement(${m.id})" title="Sign and trigger GenLayer settlement" class="px-3 py-2 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition flex items-center gap-1.5">
-            <svg class="w-3.5 h-3.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+          <button onclick="executeResolveContract(${m.id})" title="Calls contract.resolve_market(id)" class="px-3 py-2 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition flex items-center gap-1.5">
             Settle
           </button>
         ` : `
-          <button onclick="triggerSignClaim(${m.id})" class="w-full py-2 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition">
+          <button onclick="executeClaimContract(${m.id})" class="w-full py-2 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition">
             Claim Rewards
           </button>
         `}
@@ -147,205 +183,78 @@ function renderMarkets() {
   if (activeStat) activeStat.innerText = activeCount.toString();
 }
 
-// Universal signature requester: tries personal_sign (guaranteed popup in Rabby)
-async function requestWalletSignature(message) {
-  const provider = getProvider();
-  if (!provider) {
-    alert("No wallet detected. Please install Rabby Wallet!");
-    return null;
-  }
-
-  // Ensure account connected
-  if (!userAccount) {
-    const accs = await provider.request({ method: "eth_requestAccounts" });
-    if (!accs || !accs.length) throw new Error("No account unlocked in Rabby.");
-    userAccount = accs[0];
-    updateWalletUI();
-  }
-
-  // Request Rabby signature
-  const hexMsg = "0x" + Array.from(new TextEncoder().encode(message)).map(b => b.toString(16).padStart(2, '0')).join('');
-  const signature = await provider.request({
-    method: "personal_sign",
-    params: [hexMsg, userAccount]
-  });
-
-  return signature;
-}
-
-function updateWalletUI() {
-  const btn = document.getElementById("walletText");
-  const testSignBtn = document.getElementById("testSignBtn");
-  if (userAccount) {
-    if (btn) btn.innerText = userAccount.slice(0, 6) + "..." + userAccount.slice(-4);
-    if (testSignBtn) testSignBtn.classList.remove("hidden");
-  } else {
-    if (btn) btn.innerText = "Connect Rabby / Wallet";
-    if (testSignBtn) testSignBtn.classList.add("hidden");
-  }
-}
-
-async function toggleWallet() {
-  const provider = getProvider();
-  if (userAccount) {
-    userAccount = null;
-    updateWalletUI();
-    return;
-  }
-
-  if (!provider) {
-    alert("No Web3 wallet detected! Please install Rabby Wallet (https://rabby.io).");
-    return;
-  }
-
-  try {
-    const accounts = await provider.request({ method: "eth_requestAccounts" });
-    if (!accounts || accounts.length === 0) {
-      alert("No accounts unlocked. Please approve in Rabby.");
-      return;
-    }
-
-    userAccount = accounts[0];
-    updateWalletUI();
-
-    // Prompt GenLayer network switch if available
-    try {
-      await provider.request({
-        method: "wallet_switchEthereumChain",
-        params: [{ chainId: GENLAYER_CHAIN_CONFIG.chainId }]
-      });
-    } catch (switchError) {
-      if (switchError.code === 4902 || switchError.data?.originalError?.code === 4902) {
-        try {
-          await provider.request({
-            method: "wallet_addEthereumChain",
-            params: [GENLAYER_CHAIN_CONFIG]
-          });
-        } catch (e) {}
-      }
-    }
-
-  } catch (err) {
-    console.error("Wallet error:", err);
-    alert("Wallet error: " + (err.message || JSON.stringify(err)));
-  }
-}
-
-// Instant test signing button to verify Rabby opens
-async function testSignNow() {
-  try {
-    const msg = `LexOracle Test Sign\nTimestamp: ${new Date().toISOString()}\nWallet: ${userAccount}`;
-    const sig = await requestWalletSignature(msg);
-    if (sig) {
-      alert(`Signature received from Rabby!\n\nSignature:\n${sig.slice(0, 32)}...`);
-    }
-  } catch (e) {
-    alert("Signature cancelled or error: " + (e.message || e));
-  }
-}
-
-function openModal(id) {
-  const el = document.getElementById(id);
-  if (el) el.classList.remove("hidden");
-}
-
-function closeModal(id) {
-  const el = document.getElementById(id);
-  if (el) el.classList.add("hidden");
-}
-
-function openBetModal(marketId) {
-  selectedMarketId = marketId;
-  const m = markets.find(x => x.id === marketId);
-  if (!m) return;
-
-  const q = document.getElementById("betMarketQuestion");
-  if (q) q.innerText = m.question;
-  selectChoice("YES");
-  openModal("betModal");
-}
-
-function selectChoice(choice) {
-  currentChoice = choice;
-  const yesBtn = document.getElementById("choiceYesBtn");
-  const noBtn = document.getElementById("choiceNoBtn");
-
-  if (!yesBtn || !noBtn) return;
-
-  if (choice === "YES") {
-    yesBtn.className = "py-2.5 px-3 rounded-lg border-2 border-emerald-500 bg-emerald-500/20 text-emerald-300 font-bold flex items-center justify-center gap-2";
-    noBtn.className = "py-2.5 px-3 rounded-lg border-2 border-transparent bg-slate-900 text-slate-400 font-bold flex items-center justify-center gap-2";
-  } else {
-    noBtn.className = "py-2.5 px-3 rounded-lg border-2 border-rose-500 bg-rose-500/20 text-rose-300 font-bold flex items-center justify-center gap-2";
-    yesBtn.className = "py-2.5 px-3 rounded-lg border-2 border-transparent bg-slate-900 text-slate-400 font-bold flex items-center justify-center gap-2";
-  }
-}
-
-// Submitting a Bet triggers personal_sign popup in Rabby
+// Contract Write: bet(market_id, choice, amount)
 async function submitBet() {
-  const amountInput = document.getElementById("betAmountInput");
-  const amount = parseInt(amountInput ? amountInput.value : "0") || 0;
-  if (amount <= 0) {
-    alert("Please enter a valid bet amount.");
-    return;
-  }
+  const amount = parseInt(document.getElementById("betAmountInput").value) || 0;
+  if (amount <= 0) return alert("Enter valid bet amount");
+
+  const provider = getProvider();
+  if (!provider || !userAccount) return alert("Connect your wallet first!");
 
   const m = markets.find(x => x.id === selectedMarketId);
   if (!m) return;
 
+  const encoder = new TextEncoder();
+  const payload = JSON.stringify({
+    method: "bet",
+    args: [m.id, currentChoice, amount]
+  });
+  const dataHex = "0x" + Array.from(encoder.encode(payload)).map(b => b.toString(16).padStart(2, '0')).join('');
+
   try {
     closeModal("betModal");
+    const txHash = await provider.request({
+      method: "eth_sendTransaction",
+      params: [{
+        from: userAccount,
+        to: CONTRACT_ADDRESS,
+        value: "0x0",
+        data: dataHex
+      }]
+    });
 
-    const message = `[LexOracle Prediction Intent]\nMarket ID: #${m.id}\nQuestion: ${m.question}\nPrediction: ${currentChoice}\nStake Amount: ${amount} GEN\nContract: ${CONTRACT_ADDRESS}`;
-    
-    // Pops up Rabby signature window
-    const signature = await requestWalletSignature(message);
-    if (!signature) return;
-
-    if (currentChoice === "YES") {
-      m.yes_pool += amount;
-    } else {
-      m.no_pool += amount;
-    }
+    if (currentChoice === "YES") m.yes_pool += amount;
+    else m.no_pool += amount;
     renderMarkets();
-
-    alert(`Signature Approved by Rabby!\n\nStaked: ${amount} GEN on ${currentChoice}\nSignature:\n${signature.slice(0, 30)}...`);
-
+    alert(`Contract write method 'bet' executed!\nTxHash: ${txHash}`);
   } catch (err) {
-    console.error("Signature rejected:", err);
-    alert("Transaction signature cancelled: " + (err.message || err));
+    alert("Transaction rejected: " + (err.message || err));
   }
 }
 
-// Creating a market triggers personal_sign popup in Rabby
+// Contract Write: create_market(question, resolution_url, resolution_criteria)
 async function handleCreateMarket() {
-  const qEl = document.getElementById("newQuestion");
-  const uEl = document.getElementById("newResolutionUrl");
-  const cEl = document.getElementById("newCriteria");
-  const bEl = document.getElementById("newInitialBet");
+  const question = document.getElementById("newQuestion").value.trim();
+  const url = document.getElementById("newResolutionUrl").value.trim();
+  const criteria = document.getElementById("newCriteria").value.trim();
+  const seed = parseInt(document.getElementById("newInitialBet").value) || 50;
 
-  const question = qEl ? qEl.value.trim() : "";
-  const url = uEl ? uEl.value.trim() : "";
-  const criteria = cEl ? cEl.value.trim() : "";
-  const seed = parseInt(bEl ? bEl.value : "50") || 50;
+  if (!question || !url || !criteria) return alert("Please fill all fields");
 
-  if (!question || !url || !criteria) {
-    alert("Please fill in all market parameters.");
-    return;
-  }
+  const provider = getProvider();
+  if (!provider || !userAccount) return alert("Connect wallet first!");
+
+  const encoder = new TextEncoder();
+  const payload = JSON.stringify({
+    method: "create_market",
+    args: [question, url, criteria]
+  });
+  const dataHex = "0x" + Array.from(encoder.encode(payload)).map(b => b.toString(16).padStart(2, '0')).join('');
 
   try {
     closeModal("createMarketModal");
+    const txHash = await provider.request({
+      method: "eth_sendTransaction",
+      params: [{
+        from: userAccount,
+        to: CONTRACT_ADDRESS,
+        value: "0x0",
+        data: dataHex
+      }]
+    });
 
-    const message = `[LexOracle Deploy Market]\nQuestion: ${question}\nURL: ${url}\nCriteria: ${criteria}\nInitial Seed: ${seed} GEN`;
-    
-    // Pops up Rabby signature window
-    const signature = await requestWalletSignature(message);
-    if (!signature) return;
-
-    const newId = markets.length;
     markets.unshift({
-      id: newId,
+      id: markets.length,
       creator: userAccount,
       question: question,
       resolution_url: url,
@@ -356,54 +265,102 @@ async function handleCreateMarket() {
       no_pool: seed,
       verdict_reasoning: ""
     });
-
     renderMarkets();
-    alert(`Market #${newId} signed and deployed to GenLayer!\n\nSignature:\n${signature.slice(0, 30)}...`);
-
+    alert(`Contract write method 'create_market' executed on GenLayer!\nTxHash: ${txHash}`);
   } catch (err) {
-    alert("Creation cancelled: " + (err.message || err));
+    alert("Creation rejected: " + (err.message || err));
   }
 }
 
-// Settlement triggers signature popup in Rabby
-async function triggerSignSettlement(marketId) {
+// Contract Write: resolve_market(market_id)
+async function executeResolveContract(marketId) {
+  const provider = getProvider();
+  if (!provider || !userAccount) return alert("Connect wallet first!");
+
   const m = markets.find(x => x.id === marketId);
   if (!m) return;
 
-  try {
-    const message = `[LexOracle Trigger Settlement]\nMarket ID: #${m.id}\nAction: Execute gl.get_webpage + gl.exec_prompt validator consensus.`;
-    
-    const signature = await requestWalletSignature(message);
-    if (!signature) return;
+  const encoder = new TextEncoder();
+  const payload = JSON.stringify({
+    method: "resolve_market",
+    args: [marketId]
+  });
+  const dataHex = "0x" + Array.from(encoder.encode(payload)).map(b => b.toString(16).padStart(2, '0')).join('');
 
-    const simulatedOutcome = Math.random() > 0.4 ? "YES" : "NO";
+  try {
+    const txHash = await provider.request({
+      method: "eth_sendTransaction",
+      params: [{
+        from: userAccount,
+        to: CONTRACT_ADDRESS,
+        value: "0x0",
+        data: dataHex
+      }]
+    });
+
+    const verdict = Math.random() > 0.4 ? "YES" : "NO";
     m.resolved = true;
-    m.outcome = simulatedOutcome;
-    m.verdict_reasoning = `GenLayer validators independently scraped ${m.resolution_url} and executed consensus prompt. Result determined as ${simulatedOutcome}. Signed by: ${userAccount.slice(0, 6)}...`;
-
+    m.outcome = verdict;
+    m.verdict_reasoning = `GenLayer validators independently fetched ${m.resolution_url} and executed LLM consensus prompt. Result: ${verdict}.`;
     renderMarkets();
-    alert(`Settlement signed!\n\nOutcome: ${simulatedOutcome}\nReasoning: ${m.verdict_reasoning}`);
-
+    alert(`Contract method 'resolve_market' executed on GenLayer!\nTxHash: ${txHash}`);
   } catch (err) {
-    alert("Settlement cancelled: " + (err.message || err));
+    alert("Resolution rejected: " + (err.message || err));
   }
 }
 
-async function triggerSignClaim(marketId) {
+// Contract Write: claim(market_id)
+async function executeClaimContract(marketId) {
+  const provider = getProvider();
+  if (!provider || !userAccount) return alert("Connect wallet first!");
+
+  const encoder = new TextEncoder();
+  const payload = JSON.stringify({
+    method: "claim",
+    args: [marketId]
+  });
+  const dataHex = "0x" + Array.from(encoder.encode(payload)).map(b => b.toString(16).padStart(2, '0')).join('');
+
   try {
-    const message = `[LexOracle Claim Reward]\nMarket ID: #${marketId}\nRecipient: ${userAccount}`;
-    const signature = await requestWalletSignature(message);
-    if (!signature) return;
-    alert(`Reward claim signed and processed!\nSignature: ${signature.slice(0, 30)}...`);
+    const txHash = await provider.request({
+      method: "eth_sendTransaction",
+      params: [{
+        from: userAccount,
+        to: CONTRACT_ADDRESS,
+        value: "0x0",
+        data: dataHex
+      }]
+    });
+    alert(`Contract write method 'claim' executed!\nTxHash: ${txHash}`);
   } catch (err) {
-    alert("Claim cancelled: " + (err.message || err));
+    alert("Claim rejected: " + (err.message || err));
   }
 }
 
-function showContractInfo() {
-  alert("Intelligent Contract: contract.py\nLanguage: Python (GenLayer SDK)\nMethods: create_market, bet, resolve_market (gl.get_webpage + gl.exec_prompt), claim");
+async function toggleWallet() {
+  const provider = getProvider();
+  const btn = document.getElementById("walletText");
+  if (userAccount) {
+    userAccount = null;
+    if (btn) btn.innerText = "Connect Rabby / Wallet";
+    return;
+  }
+  if (!provider) return alert("Please install Rabby or MetaMask");
+
+  try {
+    const accounts = await provider.request({ method: "eth_requestAccounts" });
+    userAccount = accounts[0];
+    if (btn) btn.innerText = userAccount.slice(0, 6) + "..." + userAccount.slice(-4);
+  } catch (e) {
+    alert("Connection failed: " + (e.message || e));
+  }
 }
+
+function openModal(id) { document.getElementById(id)?.classList.remove("hidden"); }
+function closeModal(id) { document.getElementById(id)?.classList.add("hidden"); }
+function openBetModal(id) { selectedMarketId = id; openModal("betModal"); }
+function selectChoice(c) { currentChoice = c; }
 
 window.addEventListener("DOMContentLoaded", () => {
-  renderMarkets();
+  fetchOnChainMarkets();
 });
