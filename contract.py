@@ -1,200 +1,162 @@
-# venv: glenv
-"""
-LexOracle - Autonomous, Oracle-Free Prediction Markets on GenLayer
-
-Leverages GenLayer's native web access and in-contract LLM execution
-to settle arbitrary prediction markets without third-party oracles (like UMA or Chainlink).
-"""
+# { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
 
 from genlayer import *
 import json
 
-class LexOracle:
+class LexOracle(gl.Contract):
+    """
+    LexOracle: Zero-Oracle Prediction Market Intelligent Contract.
+    Uses GenLayer non-deterministic web retrieval (gl.nondet.web.get) and
+    LLM consensus (gl.nondet.exec_prompt) via gl.eq_principle.strict_eq.
+    """
+
+    markets_count: int
+    markets_data: TreeMap[int, str]
+    bets_data: TreeMap[str, str]
+
     def __init__(self):
-        self.market_counter: u256 = 0
-        # market_id -> Market data
-        self.markets = DynArray[dict]()
+        self.markets_count = 0
 
-    @view
-    def get_market_count(self) -> u256:
-        return self.market_counter
+    @gl.public.write
+    def create_market(self, question: str, resolution_url: str, resolution_criteria: str) -> int:
+        market_id = self.markets_count
+        self.markets_count += 1
 
-    @view
-    def get_market(self, market_id: u256) -> dict:
-        if market_id >= self.market_counter:
-            raise Exception("Market does not exist")
-        return self.markets[market_id]
-
-    def create_market(
-        self,
-        question: str,
-        resolution_url: str,
-        resolution_criteria: str
-    ) -> u256:
-        """
-        Creates a new prediction market.
-        - question: The binary question (e.g., 'Did SpaceX Starship complete a soft splashdown?')
-        - resolution_url: The primary URL or news feed to verify the result
-        - resolution_criteria: Specific plain-text guidelines for LLM evaluation
-        """
-        market_id = self.market_counter
-        self.market_counter += 1
-
-        new_market = {
+        market_record = {
             "id": market_id,
-            "creator": gl.message.sender.to_hex(),
+            "creator": str(gl.message.sender),
             "question": question,
             "resolution_url": resolution_url,
             "resolution_criteria": resolution_criteria,
             "resolved": False,
-            "outcome": "PENDING", # PENDING, YES, NO, INVALID
+            "outcome": "PENDING",
             "yes_pool": 0,
             "no_pool": 0,
-            "bets": {}, # address -> {"choice": "YES"|"NO", "amount": int, "claimed": bool}
             "verdict_reasoning": ""
         }
 
-        self.markets.append(new_market)
+        self.markets_data[market_id] = json.dumps(market_record)
         return market_id
 
-    def bet(self, market_id: u256, choice: str) -> None:
-        """
-        Place a bet on YES or NO. In a real GenLayer contract, gl.message.value represents deposited funds.
-        """
-        if market_id >= self.market_counter:
-            raise Exception("Market not found")
-        
-        market = self.markets[market_id]
-        if market["resolved"]:
-            raise Exception("Market has already been resolved")
-            
-        choice = choice.upper()
-        if choice not in ["YES", "NO"]:
-            raise Exception("Choice must be YES or NO")
+    @gl.public.write
+    def bet(self, market_id: int, choice: str, amount: int) -> None:
+        assert market_id < self.markets_count, "Market does not exist"
+        assert choice in ["YES", "NO"], "Choice must be YES or NO"
+        assert amount > 0, "Bet amount must be greater than 0"
 
-        # Amount staked with message
-        amount = gl.message.value
-        if amount <= 0:
-            raise Exception("Bet amount must be greater than 0")
+        market = json.loads(self.markets_data[market_id])
+        assert not market["resolved"], "Market already resolved"
 
-        sender = gl.message.sender.to_hex()
-        
-        if sender in market["bets"]:
-            existing_bet = market["bets"][sender]
-            if existing_bet["choice"] != choice:
-                raise Exception("Cannot hedge bet against yourself in the same market")
-            existing_bet["amount"] += amount
+        sender = str(gl.message.sender)
+        user_key = f"{market_id}:{sender}"
+
+        if user_key in self.bets_data:
+            user_bet = json.loads(self.bets_data[user_key])
         else:
-            market["bets"][sender] = {
-                "choice": choice,
-                "amount": amount,
-                "claimed": False
-            }
+            user_bet = {"yes": 0, "no": 0, "claimed": False}
 
         if choice == "YES":
             market["yes_pool"] += amount
+            user_bet["yes"] += amount
         else:
             market["no_pool"] += amount
+            user_bet["no"] += amount
 
-        self.markets[market_id] = market
+        self.markets_data[market_id] = json.dumps(market)
+        self.bets_data[user_key] = json.dumps(user_bet)
 
-    def resolve_market(self, market_id: u256) -> str:
-        """
-        The Intelligent Contract core:
-        Fetches the resolution URL via GenLayer validators and prompts the in-contract LLM
-        to analyze the web content against the resolution criteria.
-        """
-        if market_id >= self.market_counter:
-            raise Exception("Market not found")
+    @gl.public.write
+    def resolve_market(self, market_id: int) -> str:
+        assert market_id < self.markets_count, "Market does not exist"
 
-        market = self.markets[market_id]
-        if market["resolved"]:
-            raise Exception("Market already resolved")
+        market = json.loads(self.markets_data[market_id])
+        assert not market["resolved"], "Market already resolved"
 
-        # Step 1: GenLayer native web scraping
-        # Validators independently fetch the webpage content
-        try:
-            page_content = gl.get_webpage(market["resolution_url"])
-        except Exception as e:
-            page_content = f"Error fetching URL: {str(e)}"
+        url = market["resolution_url"]
+        question = market["question"]
+        criteria = market["resolution_criteria"]
 
-        # Step 2: In-contract prompt execution across validators
-        prompt = f"""
-You are an unbiased prediction market settlement judge running inside a GenLayer Intelligent Contract.
-Analyze the provided web content to settle the market question accurately.
+        def evaluate_market_nondet() -> str:
+            response = gl.nondet.web.get(url)
+            webpage_text = response.body.decode("utf-8")[:3000]
 
-Question: {market["question"]}
-Resolution Criteria: {market["resolution_criteria"]}
-Source URL: {market["resolution_url"]}
+            prompt = f"""
+You are an impartial decentralized prediction market oracle.
+Evaluate the outcome of the following market based strictly on the provided webpage content.
 
-Webpage Content Snippet:
-{page_content[:4000]}
+Market Question: {question}
+Resolution Rule: {criteria}
 
-Respond strictly with a JSON object in this exact schema:
+Scraped Webpage Content:
+\"\"\"{webpage_text}\"\"\"
+
+Analyze the evidence and respond using ONLY this JSON format:
 {{
-  "outcome": "YES" | "NO" | "INVALID",
-  "reasoning": "Clear concise explanation of the verdict based solely on the text provided."
+  "verdict": "YES" | "NO" | "INVALID",
+  "reasoning": "brief 1-2 sentence explanation"
 }}
-Return ONLY valid JSON, no backticks, no preamble.
 """
-        
-        # Execute prompt on GenLayer consensus
-        response_text = gl.exec_prompt(prompt)
-        
-        # Step 3: Parse decision & record on-chain
-        try:
-            data = json.loads(response_text.strip())
-            verdict = data.get("outcome", "INVALID").upper()
-            reasoning = data.get("reasoning", "No detailed reasoning provided.")
-            if verdict not in ["YES", "NO", "INVALID"]:
-                verdict = "INVALID"
-        except Exception:
-            verdict = "INVALID"
-            reasoning = "Failed to parse consensus JSON output."
+            return gl.nondet.exec_prompt(prompt)
+
+        raw_consensus_result = gl.eq_principle.strict_eq(evaluate_market_nondet)
+
+        cleaned = raw_consensus_result.strip()
+        if "```json" in cleaned:
+            cleaned = cleaned.split("```json")[1].split("```")[0].strip()
+        elif "```" in cleaned:
+            cleaned = cleaned.split("```")[1].split("```")[0].strip()
+
+        parsed = json.loads(cleaned)
+        verdict = parsed.get("verdict", "INVALID")
+        reasoning = parsed.get("reasoning", "Resolved by validator consensus.")
 
         market["resolved"] = True
         market["outcome"] = verdict
         market["verdict_reasoning"] = reasoning
-        self.markets[market_id] = market
 
+        self.markets_data[market_id] = json.dumps(market)
         return verdict
 
-    def claim(self, market_id: u256) -> u256:
-        """
-        Claim winning payouts based on pooled staking ratios.
-        """
-        if market_id >= self.market_counter:
-            raise Exception("Market not found")
+    @gl.public.write
+    def claim(self, market_id: int) -> int:
+        assert market_id < self.markets_count, "Market does not exist"
+        market = json.loads(self.markets_data[market_id])
+        assert market["resolved"], "Market not resolved yet"
 
-        market = self.markets[market_id]
-        if not market["resolved"]:
-            raise Exception("Market has not yet been resolved")
+        sender = str(gl.message.sender)
+        user_key = f"{market_id}:{sender}"
+        assert user_key in self.bets_data, "No bet found for user"
 
-        sender = gl.message.sender.to_hex()
-        if sender not in market["bets"]:
-            raise Exception("No bets placed for this address")
+        user_bet = json.loads(self.bets_data[user_key])
+        assert not user_bet.get("claimed", False), "Already claimed"
 
-        user_bet = market["bets"][sender]
-        if user_bet["claimed"]:
-            raise Exception("Payout already claimed")
-
+        outcome = market["outcome"]
         total_pool = market["yes_pool"] + market["no_pool"]
         payout = 0
 
-        if market["outcome"] == "INVALID":
-            # Refund original stake on invalid resolutions
-            payout = user_bet["amount"]
-        elif market["outcome"] == user_bet["choice"]:
-            winning_pool = market["yes_pool"] if market["outcome"] == "YES" else market["no_pool"]
-            if winning_pool > 0:
-                # Pro-rata distribution of total pool
-                payout = (user_bet["amount"] * total_pool) // winning_pool
-        else:
-            raise Exception("User bet did not win")
+        if outcome == "YES" and market["yes_pool"] > 0:
+            payout = int((user_bet["yes"] * total_pool) / market["yes_pool"])
+        elif outcome == "NO" and market["no_pool"] > 0:
+            payout = int((user_bet["no"] * total_pool) / market["no_pool"])
+        elif outcome == "INVALID":
+            payout = user_bet["yes"] + user_bet["no"]
 
         user_bet["claimed"] = True
-        self.markets[market_id] = market
-
-        # Transfer funds to winner
-        gl.send(gl.message.sender, payout)
+        self.bets_data[user_key] = json.dumps(user_bet)
         return payout
+
+    @gl.public.view
+    def get_market(self, market_id: int) -> str:
+        assert market_id < self.markets_count, "Market does not exist"
+        return self.markets_data[market_id]
+
+    @gl.public.view
+    def get_market_count(self) -> int:
+        return self.markets_count
+
+    @gl.public.view
+    def get_user_bet(self, market_id: int, user: str) -> str:
+        key = f"{market_id}:{user}"
+        if key in self.bets_data:
+            return self.bets_data[key]
+        return json.dumps({"yes": 0, "no": 0, "claimed": False})
