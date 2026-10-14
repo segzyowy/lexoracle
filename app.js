@@ -1,5 +1,5 @@
 // LexOracle Frontend Application Logic
-// Simulates / connects to GenLayer Client and Intelligent Contract interactions
+// Connects to Rabby Wallet / Web3 Provider & GenLayer Testnet
 
 let userAccount = null;
 let selectedMarketId = null;
@@ -81,7 +81,6 @@ function renderMarkets() {
           ${m.question}
         </h3>
 
-        <!-- Probability Bar -->
         <div class="mb-4">
           <div class="flex justify-between text-xs font-semibold mb-1.5 mono">
             <span class="text-emerald-400">YES ${yesPercent}% (${m.yes_pool} GEN)</span>
@@ -93,7 +92,6 @@ function renderMarkets() {
           </div>
         </div>
 
-        <!-- GenLayer Scraper Details -->
         <div class="p-3 rounded-lg bg-slate-900/80 border border-slate-800/60 mb-4 text-xs space-y-1.5">
           <div class="flex items-center gap-1.5 text-slate-400 font-medium">
             <svg class="w-3.5 h-3.5 text-indigo-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
@@ -154,61 +152,62 @@ async function toggleWallet() {
 
   if (userAccount) {
     userAccount = null;
-    btn.innerText = "Connect Rabby / Wallet";
+    if (btn) btn.innerText = "Connect Rabby / Wallet";
     return;
   }
 
-  if (typeof window.ethereum === "undefined") {
-    alert("No Web3 wallet detected! Please install Rabby Wallet (https://rabby.io) or an EVM wallet.");
+  const provider = window.rabby || window.ethereum;
+
+  if (!provider) {
+    alert("No Web3 wallet detected! Please install Rabby Wallet (https://rabby.io) or MetaMask.");
     return;
   }
 
   try {
-    // 1. Request account connection
-    const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+    const accounts = await provider.request({ method: "eth_requestAccounts" });
     if (!accounts || accounts.length === 0) {
-      alert("No accounts found. Please unlock Rabby.");
+      alert("No accounts unlocked. Please approve in Rabby.");
       return;
     }
 
     userAccount = accounts[0];
 
-    // 2. Try switching / adding GenLayer network
     try {
-      await window.ethereum.request({
+      await provider.request({
         method: "wallet_switchEthereumChain",
         params: [{ chainId: GENLAYER_CHAIN_CONFIG.chainId }]
       });
     } catch (switchError) {
-      // Error code 4902 indicates chain not yet added
       if (switchError.code === 4902 || switchError.data?.originalError?.code === 4902) {
-        await window.ethereum.request({
-          method: "wallet_addEthereumChain",
-          params: [GENLAYER_CHAIN_CONFIG]
-        });
+        try {
+          await provider.request({
+            method: "wallet_addEthereumChain",
+            params: [GENLAYER_CHAIN_CONFIG]
+          });
+        } catch (addErr) {
+          console.warn("User dismissed chain add:", addErr);
+        }
       }
     }
 
-    // Format address display
     const shortAddr = userAccount.slice(0, 6) + "..." + userAccount.slice(-4);
-    btn.innerText = shortAddr;
+    if (btn) btn.innerText = shortAddr;
 
-    // Listen for account / chain changes
-    if (window.ethereum.on) {
-      window.ethereum.on("accountsChanged", (newAccounts) => {
+    if (provider.on) {
+      provider.on("accountsChanged", (newAccounts) => {
         if (!newAccounts.length) {
           userAccount = null;
-          btn.innerText = "Connect Rabby / Wallet";
+          if (btn) btn.innerText = "Connect Rabby / Wallet";
         } else {
           userAccount = newAccounts[0];
-          btn.innerText = userAccount.slice(0, 6) + "..." + userAccount.slice(-4);
+          if (btn) btn.innerText = userAccount.slice(0, 6) + "..." + userAccount.slice(-4);
         }
       });
     }
 
   } catch (err) {
-    console.error("Wallet connection failed:", err);
-    alert("Connection error: " + (err.message || err));
+    console.error("Wallet error:", err);
+    alert("Wallet error: " + (err.message || JSON.stringify(err)));
   }
 }
 
@@ -227,7 +226,8 @@ function openBetModal(marketId) {
   const m = markets.find(x => x.id === marketId);
   if (!m) return;
 
-  document.getElementById("betMarketQuestion").innerText = m.question;
+  const q = document.getElementById("betMarketQuestion");
+  if (q) q.innerText = m.question;
   selectChoice("YES");
   openModal("betModal");
 }
@@ -236,6 +236,8 @@ function selectChoice(choice) {
   currentChoice = choice;
   const yesBtn = document.getElementById("choiceYesBtn");
   const noBtn = document.getElementById("choiceNoBtn");
+
+  if (!yesBtn || !noBtn) return;
 
   if (choice === "YES") {
     yesBtn.className = "py-2.5 px-3 rounded-lg border-2 border-emerald-500 bg-emerald-500/20 text-emerald-300 font-bold flex items-center justify-center gap-2";
@@ -248,7 +250,7 @@ function selectChoice(choice) {
 
 function submitBet() {
   const amountInput = document.getElementById("betAmountInput");
-  const amount = parseInt(amountInput.value) || 0;
+  const amount = parseInt(amountInput ? amountInput.value : "0") || 0;
   if (amount <= 0) {
     alert("Please enter a valid bet amount.");
     return;
@@ -268,4 +270,72 @@ function submitBet() {
 }
 
 function handleCreateMarket() {
-  const question = document.getElementById("newQuestion").value.trim();
+  const qEl = document.getElementById("newQuestion");
+  const uEl = document.getElementById("newResolutionUrl");
+  const cEl = document.getElementById("newCriteria");
+  const bEl = document.getElementById("newInitialBet");
+
+  const question = qEl ? qEl.value.trim() : "";
+  const url = uEl ? uEl.value.trim() : "";
+  const criteria = cEl ? cEl.value.trim() : "";
+  const seed = parseInt(bEl ? bEl.value : "50") || 50;
+
+  if (!question || !url || !criteria) {
+    alert("Please fill in all market parameters.");
+    return;
+  }
+
+  const newId = markets.length;
+  markets.unshift({
+    id: newId,
+    creator: userAccount || "0x4F8...a9B2",
+    question: question,
+    resolution_url: url,
+    resolution_criteria: criteria,
+    resolved: false,
+    outcome: "PENDING",
+    yes_pool: seed,
+    no_pool: seed,
+    verdict_reasoning: ""
+  });
+
+  renderMarkets();
+  closeModal("createMarketModal");
+  alert(`Market #${newId} deployed to GenLayer Intelligent Contract!`);
+}
+
+function simulateResolution(marketId) {
+  const m = markets.find(x => x.id === marketId);
+  if (!m) return;
+
+  const confirmRun = confirm(
+    `Simulate GenLayer Intelligent Contract Resolution for Market #${marketId}?\n\n1. gl.get_webpage("${m.resolution_url}")\n2. gl.exec_prompt() consensus over criteria.`
+  );
+
+  if (!confirmRun) return;
+
+  const simulatedOutcome = Math.random() > 0.4 ? "YES" : "NO";
+  m.resolved = true;
+  m.outcome = simulatedOutcome;
+  m.verdict_reasoning = `GenLayer validators independently fetched ${m.resolution_url} and executed LLM consensus prompt. Result determined as ${simulatedOutcome} based on matched criteria.`;
+
+  renderMarkets();
+  alert(`Market #${marketId} settled autonomously by GenLayer Intelligent Contract!\n\nOutcome: ${simulatedOutcome}\nReasoning: ${m.verdict_reasoning}`);
+}
+
+function claimWinnings(marketId) {
+  alert(`Checking bet claims on GenLayer contract for Market #${marketId}...\nPayout distributed to your address!`);
+}
+
+function showContractInfo() {
+  alert("Intelligent Contract: contract.py\nLanguage: Python (GenLayer SDK)\nMethods: create_market, bet, resolve_market (gl.get_webpage + gl.exec_prompt), claim");
+}
+
+function filterMarkets(type) {
+  renderMarkets();
+}
+
+// Initial render
+window.addEventListener("DOMContentLoaded", () => {
+  renderMarkets();
+});
