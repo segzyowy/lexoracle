@@ -41,14 +41,14 @@
         </div>
       </div>
 
-      <div class="flex items-center gap-3">
-        <button id="testSignBtn" onclick="testSignNow()" class="hidden text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 transition">
-          ⚡ Test Sign
-        </button>
-
-        <button id="connectWalletBtn" type="button" class="cursor-pointer text-sm font-semibold px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 active:scale-95 transition shadow-lg shadow-indigo-600/25 flex items-center gap-2">
+      <div class="flex items-center gap-4">
+        <div class="hidden sm:flex items-center gap-2 text-xs mono text-slate-400 bg-slate-900/80 px-3 py-1.5 rounded-lg border border-slate-800">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span>GenLayer Testnet</span>
+        </div>
+        <button id="connectWalletBtn" onclick="toggleWallet()" class="text-sm font-semibold px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 transition shadow-lg shadow-indigo-600/25 flex items-center gap-2">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
-          <span id="walletText">Connect Rabby / Wallet</span>
+          <span id="walletText">Connect GenLayer Wallet</span>
         </button>
       </div>
     </div>
@@ -68,6 +68,9 @@
         <button onclick="openModal('createMarketModal')" class="px-4 py-2.5 rounded-lg bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white font-semibold text-sm shadow-lg shadow-indigo-500/20 transition flex items-center gap-2">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
           Create Market
+        </button>
+        <button onclick="filterMarkets('all')" class="px-3 py-2 text-xs font-semibold rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 transition">
+          Refresh
         </button>
       </div>
     </div>
@@ -91,7 +94,9 @@
     </div>
 
     <!-- Markets Grid -->
-    <div id="marketsList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+    <div id="marketsList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <!-- Populated via JS -->
+    </div>
   </main>
 
   <!-- Create Market Modal -->
@@ -127,7 +132,7 @@
 
       <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
         <button onclick="closeModal('createMarketModal')" class="px-4 py-2 rounded-lg text-slate-400 hover:text-white text-sm">Cancel</button>
-        <button onclick="handleCreateMarket()" class="px-5 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 font-semibold text-sm text-white shadow-lg shadow-indigo-600/30 transition">Sign & Deploy</button>
+        <button onclick="handleCreateMarket()" class="px-5 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 font-semibold text-sm text-white shadow-lg shadow-indigo-600/30 transition">Deploy Market</button>
       </div>
     </div>
   </div>
@@ -160,7 +165,7 @@
 
       <div class="pt-2 flex justify-end gap-3">
         <button onclick="closeModal('betModal')" class="px-4 py-2 rounded-lg text-slate-400 hover:text-white text-sm">Cancel</button>
-        <button onclick="submitBet()" class="px-5 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 font-semibold text-sm text-white shadow-lg shadow-emerald-600/30 transition">Sign in Rabby</button>
+        <button onclick="submitBet()" class="px-5 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 font-semibold text-sm text-white shadow-lg shadow-emerald-600/30 transition">Confirm Bet</button>
       </div>
     </div>
   </div>
@@ -168,7 +173,9 @@
   <!-- Footer -->
   <footer class="border-t border-slate-900 py-6 mt-12 bg-slate-950/40 text-xs text-slate-500">
     <div class="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-      <div>LexOracle &copy; 2025. Built on GenLayer Intelligent Contracts.</div>
+      <div>
+        <span>LexOracle &copy; 2025. Built on GenLayer Intelligent Contracts.</span>
+      </div>
       <div class="flex gap-4 mono">
         <a href="#contract" onclick="showContractInfo()" class="hover:text-indigo-400 transition">View Contract Spec</a>
         <span>&bull;</span>
@@ -177,19 +184,6 @@
     </div>
   </footer>
 
-  <!-- Scripts with cache buster -->
-  <script src="app.js?v=5"></script>
-  <script>
-    document.addEventListener("DOMContentLoaded", function() {
-      const btn = document.getElementById("connectWalletBtn");
-      if (btn) {
-        btn.addEventListener("click", function() {
-          if (typeof toggleWallet === "function") {
-            toggleWallet();
-          }
-        });
-      }
-    });
-  </script>
+  <script src="app.js"></script>
 </body>
 </html>

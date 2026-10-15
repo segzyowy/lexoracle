@@ -5,9 +5,9 @@ import json
 
 class LexOracle(gl.Contract):
     """
-    LexOracle: Zero-Oracle Prediction Market Intelligent Contract.
+    LexOracle: Zero-Oracle Arbitrary Prediction Market Intelligent Contract.
     Uses GenLayer non-deterministic web retrieval (gl.nondet.web.get) and
-    LLM consensus (gl.nondet.exec_prompt) via gl.eq_principle.strict_eq.
+    LLM comparative consensus (gl.nondet.exec_prompt) via gl.eq_principle.strict_eq.
     """
 
     markets_count: int
@@ -19,6 +19,9 @@ class LexOracle(gl.Contract):
 
     @gl.public.write
     def create_market(self, question: str, resolution_url: str, resolution_criteria: str) -> int:
+        """
+        Creates a new prediction market with natural language resolution criteria and reference URL.
+        """
         market_id = self.markets_count
         self.markets_count += 1
 
@@ -40,6 +43,9 @@ class LexOracle(gl.Contract):
 
     @gl.public.write
     def bet(self, market_id: int, choice: str, amount: int) -> None:
+        """
+        Places a bet on YES or NO.
+        """
         assert market_id < self.markets_count, "Market does not exist"
         assert choice in ["YES", "NO"], "Choice must be YES or NO"
         assert amount > 0, "Bet amount must be greater than 0"
@@ -67,6 +73,11 @@ class LexOracle(gl.Contract):
 
     @gl.public.write
     def resolve_market(self, market_id: int) -> str:
+        """
+        Autonomous resolution entry point.
+        Validators fetch the webpage via gl.nondet.web.get and evaluate via gl.nondet.exec_prompt.
+        Consensus is enforced through gl.eq_principle.strict_eq.
+        """
         assert market_id < self.markets_count, "Market does not exist"
 
         market = json.loads(self.markets_data[market_id])
@@ -119,6 +130,9 @@ Analyze the evidence and respond using ONLY this JSON format:
 
     @gl.public.write
     def claim(self, market_id: int) -> int:
+        """
+        Claims payout for winning position.
+        """
         assert market_id < self.markets_count, "Market does not exist"
         market = json.loads(self.markets_data[market_id])
         assert market["resolved"], "Market not resolved yet"
