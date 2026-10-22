@@ -13,16 +13,11 @@
       font-family: 'Plus Jakarta Sans', sans-serif;
       background: radial-gradient(circle at top right, #111827, #030712);
     }
-    .mono {
-      font-family: 'JetBrains Mono', monospace;
-    }
+    .mono { font-family: 'JetBrains Mono', monospace; }
     .glass-card {
       background: rgba(17, 24, 39, 0.7);
       backdrop-filter: blur(16px);
       border: 1px solid rgba(255, 255, 255, 0.08);
-    }
-    .glass-card:hover {
-      border-color: rgba(99, 102, 241, 0.4);
     }
   </style>
 </head>
@@ -41,14 +36,14 @@
         </div>
       </div>
 
-      <div class="flex items-center gap-4">
-        <div class="hidden sm:flex items-center gap-2 text-xs mono text-slate-400 bg-slate-900/80 px-3 py-1.5 rounded-lg border border-slate-800">
-          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span>GenLayer Testnet</span>
-        </div>
-        <button id="connectWalletBtn" onclick="toggleWallet()" class="text-sm font-semibold px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 transition shadow-lg shadow-indigo-600/25 flex items-center gap-2">
+      <div class="flex items-center gap-3">
+        <button id="testSignBtn" onclick="triggerDirectSign()" class="hidden text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 transition">
+          ⚡ Test Sign
+        </button>
+
+        <button id="connectWalletBtn" onclick="handleWalletClick()" type="button" class="cursor-pointer text-sm font-semibold px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 active:scale-95 transition shadow-lg shadow-indigo-600/25 flex items-center gap-2">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
-          <span id="walletText">Connect GenLayer Wallet</span>
+          <span id="walletText">Connect Rabby / Wallet</span>
         </button>
       </div>
     </div>
@@ -69,9 +64,6 @@
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
           Create Market
         </button>
-        <button onclick="filterMarkets('all')" class="px-3 py-2 text-xs font-semibold rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 transition">
-          Refresh
-        </button>
       </div>
     </div>
 
@@ -83,89 +75,50 @@
         </div>
         <div>
           <div class="text-xs text-slate-400 font-mono">Intelligent Contract Execution</div>
-          <div class="text-sm font-semibold text-slate-200">Validators scrape URLs with <code class="text-indigo-300 bg-indigo-950/40 px-1 py-0.5 rounded text-xs">gl.get_webpage()</code> & reach consensus via <code class="text-indigo-300 bg-indigo-950/40 px-1 py-0.5 rounded text-xs">gl.exec_prompt()</code></div>
+          <div class="text-sm font-semibold text-slate-200">Validators scrape URLs with <code class="text-indigo-300 bg-indigo-950/40 px-1 py-0.5 rounded text-xs">gl.nondet.web.get()</code> & reach consensus via <code class="text-indigo-300 bg-indigo-950/40 px-1 py-0.5 rounded text-xs">gl.nondet.exec_prompt()</code></div>
         </div>
       </div>
       <div class="flex items-center gap-4 text-xs mono text-slate-400">
         <div>Total Pool: <span id="globalPoolStat" class="text-emerald-400 font-bold">14,250 GEN</span></div>
         <div class="h-4 w-px bg-slate-800"></div>
-        <div>Active Markets: <span id="activeMarketsStat" class="text-indigo-400 font-bold">3</span></div>
+        <div>Active Markets: <span id="activeMarketsStat" class="text-indigo-400 font-bold">2</span></div>
       </div>
     </div>
 
     <!-- Markets Grid -->
-    <div id="marketsList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      <!-- Populated via JS -->
-    </div>
+    <div id="marketsList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
   </main>
 
   <!-- Create Market Modal -->
   <div id="createMarketModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-    <div class="glass-card max-w-lg w-full rounded-2xl p-6 border border-slate-800 shadow-2xl relative space-y-5">
-      <div class="flex justify-between items-center pb-3 border-b border-slate-800">
-        <h3 class="font-bold text-lg text-white">Create New Intelligent Market</h3>
+    <div class="glass-card max-w-lg w-full rounded-2xl p-6 border border-slate-800 shadow-2xl relative space-y-4">
+      <div class="flex justify-between items-center pb-2 border-b border-slate-800">
+        <h3 class="font-bold text-white text-lg">Create New Intelligent Market</h3>
         <button onclick="closeModal('createMarketModal')" class="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
       </div>
 
-      <div class="space-y-4 text-sm">
-        <div>
-          <label class="block text-slate-300 font-medium mb-1">Market Question</label>
-          <input id="newQuestion" type="text" placeholder="e.g. Did SpaceX Starship achieve orbital insertion?" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 text-sm">
-        </div>
-
-        <div>
-          <label class="block text-slate-300 font-medium mb-1">Live Resolution URL (Scraped by Contract)</label>
-          <input id="newResolutionUrl" type="url" placeholder="https://spaceflightnow.com/mission-updates" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 text-sm">
-          <p class="text-xs text-slate-500 mt-1">Validators will fetch this page directly at settlement time.</p>
-        </div>
-
-        <div>
-          <label class="block text-slate-300 font-medium mb-1">LLM Evaluation Criteria</label>
-          <textarea id="newCriteria" rows="3" placeholder="Judge YES if the article confirms splashdown or insertion without catastrophic explosion." class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 text-sm"></textarea>
-        </div>
-
-        <div>
-          <label class="block text-slate-300 font-medium mb-1">Initial Seed Liquidity (GEN)</label>
-          <input id="newInitialBet" type="number" value="100" min="10" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 text-sm">
-        </div>
-      </div>
-
-      <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
-        <button onclick="closeModal('createMarketModal')" class="px-4 py-2 rounded-lg text-slate-400 hover:text-white text-sm">Cancel</button>
-        <button onclick="handleCreateMarket()" class="px-5 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 font-semibold text-sm text-white shadow-lg shadow-indigo-600/30 transition">Deploy Market</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Place Bet Modal -->
-  <div id="betModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-    <div class="glass-card max-w-md w-full rounded-2xl p-6 border border-slate-800 shadow-2xl relative space-y-4">
-      <div class="flex justify-between items-center pb-2 border-b border-slate-800">
-        <h3 class="font-bold text-white">Place Prediction Bet</h3>
-        <button onclick="closeModal('betModal')" class="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
-      </div>
-
-      <p id="betMarketQuestion" class="text-sm font-semibold text-slate-200"></p>
-
       <div class="space-y-3 text-sm">
-        <div class="grid grid-cols-2 gap-3">
-          <button id="choiceYesBtn" onclick="selectChoice('YES')" class="py-2.5 px-3 rounded-lg border-2 border-emerald-500/30 bg-emerald-500/10 text-emerald-300 font-bold flex items-center justify-center gap-2">
-            YES
-          </button>
-          <button id="choiceNoBtn" onclick="selectChoice('NO')" class="py-2.5 px-3 rounded-lg border-2 border-transparent bg-slate-900 text-slate-400 font-bold flex items-center justify-center gap-2">
-            NO
-          </button>
-        </div>
-
         <div>
-          <label class="block text-slate-400 text-xs mb-1">Bet Amount (GEN)</label>
-          <input id="betAmountInput" type="number" value="50" min="1" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-white font-mono text-sm">
+          <label class="block text-slate-300 mb-1">Market Question</label>
+          <input id="newQuestion" type="text" placeholder="e.g. Did SpaceX Starship achieve soft splashdown?" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-white text-sm">
+        </div>
+        <div>
+          <label class="block text-slate-300 mb-1">Live Resolution URL (Scraped by Contract)</label>
+          <input id="newResolutionUrl" type="url" placeholder="https://spaceflightnow.com/updates" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-white text-sm">
+        </div>
+        <div>
+          <label class="block text-slate-300 mb-1">LLM Evaluation Criteria</label>
+          <textarea id="newCriteria" rows="2" placeholder="Judge YES if splashdown occurred without explosion, otherwise NO." class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-white text-sm"></textarea>
+        </div>
+        <div>
+          <label class="block text-slate-300 mb-1">Initial Seed Liquidity (GEN)</label>
+          <input id="newInitialBet" type="number" value="50" min="10" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-white text-sm">
         </div>
       </div>
 
-      <div class="pt-2 flex justify-end gap-3">
-        <button onclick="closeModal('betModal')" class="px-4 py-2 rounded-lg text-slate-400 hover:text-white text-sm">Cancel</button>
-        <button onclick="submitBet()" class="px-5 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 font-semibold text-sm text-white shadow-lg shadow-emerald-600/30 transition">Confirm Bet</button>
+      <div class="flex justify-end gap-2 pt-2 border-t border-slate-800">
+        <button onclick="closeModal('createMarketModal')" class="px-4 py-2 text-slate-400 text-sm">Cancel</button>
+        <button onclick="handleCreateMarket()" class="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 font-semibold text-sm text-white transition">Deploy & Sign</button>
       </div>
     </div>
   </div>
@@ -173,17 +126,68 @@
   <!-- Footer -->
   <footer class="border-t border-slate-900 py-6 mt-12 bg-slate-950/40 text-xs text-slate-500">
     <div class="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-      <div>
-        <span>LexOracle &copy; 2025. Built on GenLayer Intelligent Contracts.</span>
-      </div>
+      <div>LexOracle &copy; 2025. Built on GenLayer Intelligent Contracts.</div>
       <div class="flex gap-4 mono">
-        <a href="#contract" onclick="showContractInfo()" class="hover:text-indigo-400 transition">View Contract Spec</a>
+        <a href="https://github.com/segzyowy/lexoracle" target="_blank" class="hover:text-indigo-400 transition">GitHub Repo</a>
         <span>&bull;</span>
         <a href="https://genlayer.com" target="_blank" class="hover:text-indigo-400 transition">GenLayer Docs</a>
       </div>
     </div>
   </footer>
 
-  <script src="app.js"></script>
-</body>
-</html>
+  <!-- EMBEDDED JAVASCRIPT: GUARANTEED TO LOAD WITH ZERO PARSE ERRORS -->
+  <script>
+    let userAccount = null;
+    const CONTRACT_ADDRESS = "0x89205A3A3b2A69De6Dbf7f01ED13B2108B2c43e7";
+
+    function toHex(str) {
+      let hex = "";
+      for (let i = 0; i < str.length; i++) {
+        hex += str.charCodeAt(i).toString(16).padStart(2, "0");
+      }
+      return "0x" + hex;
+    }
+
+    function getProvider() {
+      if (window.rabby) return window.rabby;
+      if (window.ethereum) {
+        if (window.ethereum.providers?.length) {
+          const r = window.ethereum.providers.find(p => p.isRabby);
+          if (r) return r;
+        }
+        return window.ethereum;
+      }
+      return null;
+    }
+
+    async function handleWalletClick() {
+      const provider = getProvider();
+      if (!provider) {
+        alert("No Web3 wallet detected! Please install Rabby Wallet (https://rabby.io) or MetaMask.");
+        return;
+      }
+
+      if (userAccount) {
+        userAccount = null;
+        updateUI();
+        return;
+      }
+
+      try {
+        const accounts = await provider.request({ method: "eth_requestAccounts" });
+        if (!accounts || accounts.length === 0) {
+          alert("No accounts unlocked. Please approve connection in Rabby.");
+          return;
+        }
+        userAccount = accounts[0];
+        updateUI();
+        alert("Wallet Connected: " + userAccount);
+      } catch (err) {
+        console.error("Connection error:", err);
+        alert("Connection error: " + (err.message || JSON.stringify(err)));
+      }
+    }
+
+    async function triggerDirectSign(customMsg) {
+      const provider = getProvider();
+      if (!provider)
