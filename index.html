@@ -3,41 +3,33 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LexOracle - Oracle-Free Autonomous Prediction Markets</title>
+  <title>LexOracle - Zero-Oracle Prediction Markets</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
   <style>
-    body {
-      font-family: 'Plus Jakarta Sans', sans-serif;
-      background: radial-gradient(circle at top right, #111827, #030712);
-    }
+    body { font-family: 'Plus Jakarta Sans', sans-serif; background: radial-gradient(circle at top right, #111827, #030712); }
     .mono { font-family: 'JetBrains Mono', monospace; }
-    .glass-card {
-      background: rgba(17, 24, 39, 0.7);
-      backdrop-filter: blur(16px);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-    }
+    .glass-card { background: rgba(17, 24, 39, 0.7); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); }
   </style>
 </head>
 <body class="min-h-screen text-slate-100 flex flex-col justify-between">
 
-  <!-- Top Navbar -->
+  <!-- Header -->
   <header class="border-b border-slate-800/80 sticky top-0 bg-slate-950/80 backdrop-blur z-50">
     <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
       <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-emerald-400 flex items-center justify-center font-black text-xl shadow-lg shadow-indigo-500/20 text-white">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-emerald-400 flex items-center justify-center font-black text-xl text-white shadow-lg shadow-indigo-500/20">
           Ω
         </div>
         <div>
-          <span class="font-extrabold text-lg tracking-tight bg-gradient-to-r from-white via-slate-200 to-indigo-300 bg-clip-text text-transparent">LexOracle</span>
+          <span class="font-extrabold text-lg text-white">LexOracle</span>
           <span class="text-xs ml-2 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">GenLayer Powered</span>
         </div>
       </div>
 
       <div class="flex items-center gap-3">
-        <button id="testSignBtn" onclick="triggerDirectSign()" class="hidden text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 transition">
+        <button id="testSignBtn" onclick="testSignNow()" class="hidden text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 transition">
           ⚡ Test Sign
         </button>
 
@@ -49,7 +41,7 @@
     </div>
   </header>
 
-  <!-- Hero & Banner -->
+  <!-- Hero & Markets -->
   <main class="max-w-7xl mx-auto px-6 py-8 flex-1 w-full space-y-8">
     <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-2 border-b border-slate-800/60">
       <div>
@@ -58,52 +50,37 @@
           Markets settle directly against live open-web data using GenLayer Intelligent Contracts with in-contract LLMs and validator web consensus.
         </p>
       </div>
-
-      <div class="flex items-center gap-3">
-        <button onclick="openModal('createMarketModal')" class="px-4 py-2.5 rounded-lg bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white font-semibold text-sm shadow-lg shadow-indigo-500/20 transition flex items-center gap-2">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-          Create Market
-        </button>
-      </div>
+      <button onclick="openModal('createMarketModal')" class="px-4 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 font-semibold text-sm text-white shadow-lg shadow-indigo-600/25 transition">
+        + Create Market
+      </button>
     </div>
 
-    <!-- Contract Insight Banner -->
+    <!-- Contract Banner -->
     <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-      <div class="flex items-center gap-3">
-        <div class="p-2.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-        </div>
-        <div>
-          <div class="text-xs text-slate-400 font-mono">Intelligent Contract Execution</div>
-          <div class="text-sm font-semibold text-slate-200">Validators scrape URLs with <code class="text-indigo-300 bg-indigo-950/40 px-1 py-0.5 rounded text-xs">gl.nondet.web.get()</code> & reach consensus via <code class="text-indigo-300 bg-indigo-950/40 px-1 py-0.5 rounded text-xs">gl.nondet.exec_prompt()</code></div>
-        </div>
+      <div class="text-sm font-semibold text-slate-200">
+        Validators scrape with <code class="text-indigo-300 bg-indigo-950/40 px-1 py-0.5 rounded text-xs">gl.nondet.web.get()</code> & reach consensus via <code class="text-indigo-300 bg-indigo-950/40 px-1 py-0.5 rounded text-xs">gl.nondet.exec_prompt()</code>
       </div>
-      <div class="flex items-center gap-4 text-xs mono text-slate-400">
-        <div>Total Pool: <span id="globalPoolStat" class="text-emerald-400 font-bold">14,250 GEN</span></div>
-        <div class="h-4 w-px bg-slate-800"></div>
-        <div>Active Markets: <span id="activeMarketsStat" class="text-indigo-400 font-bold">2</span></div>
-      </div>
+      <div class="text-xs mono text-slate-400">Total Pool: <span class="text-emerald-400 font-bold">14,250 GEN</span></div>
     </div>
 
-    <!-- Markets Grid -->
+    <!-- Cards -->
     <div id="marketsList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
   </main>
 
   <!-- Create Market Modal -->
   <div id="createMarketModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-    <div class="glass-card max-w-lg w-full rounded-2xl p-6 border border-slate-800 shadow-2xl relative space-y-4">
+    <div class="glass-card max-w-lg w-full rounded-2xl p-6 border border-slate-800 space-y-4">
       <div class="flex justify-between items-center pb-2 border-b border-slate-800">
         <h3 class="font-bold text-white text-lg">Create New Intelligent Market</h3>
-        <button onclick="closeModal('createMarketModal')" class="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
+        <button onclick="closeModal('createMarketModal')" class="text-slate-400 hover:text-white text-xl">&times;</button>
       </div>
-
       <div class="space-y-3 text-sm">
         <div>
           <label class="block text-slate-300 mb-1">Market Question</label>
           <input id="newQuestion" type="text" placeholder="e.g. Did SpaceX Starship achieve soft splashdown?" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-white text-sm">
         </div>
         <div>
-          <label class="block text-slate-300 mb-1">Live Resolution URL (Scraped by Contract)</label>
+          <label class="block text-slate-300 mb-1">Live Resolution URL</label>
           <input id="newResolutionUrl" type="url" placeholder="https://spaceflightnow.com/updates" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-white text-sm">
         </div>
         <div>
@@ -111,31 +88,24 @@
           <textarea id="newCriteria" rows="2" placeholder="Judge YES if splashdown occurred without explosion, otherwise NO." class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-white text-sm"></textarea>
         </div>
         <div>
-          <label class="block text-slate-300 mb-1">Initial Seed Liquidity (GEN)</label>
-          <input id="newInitialBet" type="number" value="50" min="10" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-white text-sm">
+          <label class="block text-slate-300 mb-1">Initial Seed (GEN)</label>
+          <input id="newInitialBet" type="number" value="50" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-white text-sm">
         </div>
       </div>
-
       <div class="flex justify-end gap-2 pt-2 border-t border-slate-800">
         <button onclick="closeModal('createMarketModal')" class="px-4 py-2 text-slate-400 text-sm">Cancel</button>
-        <button onclick="handleCreateMarket()" class="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 font-semibold text-sm text-white transition">Deploy & Sign</button>
+        <button onclick="handleCreateMarket()" class="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 font-semibold text-sm text-white">Deploy & Sign</button>
       </div>
     </div>
   </div>
 
-  <!-- Footer -->
   <footer class="border-t border-slate-900 py-6 mt-12 bg-slate-950/40 text-xs text-slate-500">
-    <div class="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+    <div class="max-w-7xl mx-auto px-6 flex justify-between">
       <div>LexOracle &copy; 2025. Built on GenLayer Intelligent Contracts.</div>
-      <div class="flex gap-4 mono">
-        <a href="https://github.com/segzyowy/lexoracle" target="_blank" class="hover:text-indigo-400 transition">GitHub Repo</a>
-        <span>&bull;</span>
-        <a href="https://genlayer.com" target="_blank" class="hover:text-indigo-400 transition">GenLayer Docs</a>
-      </div>
+      <a href="https://github.com/segzyowy/lexoracle" target="_blank" class="hover:text-indigo-400">GitHub Repo</a>
     </div>
   </footer>
 
-  <!-- EMBEDDED JAVASCRIPT: GUARANTEED TO LOAD WITH ZERO PARSE ERRORS -->
   <script>
     let userAccount = null;
     const CONTRACT_ADDRESS = "0x89205A3A3b2A69De6Dbf7f01ED13B2108B2c43e7";
@@ -151,7 +121,7 @@
     function getProvider() {
       if (window.rabby) return window.rabby;
       if (window.ethereum) {
-        if (window.ethereum.providers?.length) {
+        if (window.ethereum.providers && window.ethereum.providers.length) {
           const r = window.ethereum.providers.find(p => p.isRabby);
           if (r) return r;
         }
@@ -176,18 +146,196 @@
       try {
         const accounts = await provider.request({ method: "eth_requestAccounts" });
         if (!accounts || accounts.length === 0) {
-          alert("No accounts unlocked. Please approve connection in Rabby.");
+          alert("No accounts unlocked in Rabby.");
           return;
         }
         userAccount = accounts[0];
         updateUI();
-        alert("Wallet Connected: " + userAccount);
       } catch (err) {
-        console.error("Connection error:", err);
-        alert("Connection error: " + (err.message || JSON.stringify(err)));
+        alert("Wallet error: " + (err.message || err));
       }
     }
 
-    async function triggerDirectSign(customMsg) {
+    async function testSignNow() {
+      await requestSign("LexOracle Verification Test Signature");
+    }
+
+    async function requestSign(msgText) {
       const provider = getProvider();
-      if (!provider)
+      if (!provider) {
+        alert("Please install Rabby Wallet first!");
+        return null;
+      }
+
+      try {
+        if (!userAccount) {
+          const accounts = await provider.request({ method: "eth_requestAccounts" });
+          if (!accounts || !accounts.length) return null;
+          userAccount = accounts[0];
+          updateUI();
+        }
+
+        const fullMsg = msgText + "\nAccount: " + userAccount + "\nTime: " + new Date().toISOString();
+        const hexMsg = toHex(fullMsg);
+
+        const sig = await provider.request({
+          method: "personal_sign",
+          params: [hexMsg, userAccount]
+        });
+
+        alert("Signature Approved in Rabby!\n\nSignature:\n" + sig.slice(0, 32) + "...");
+        return sig;
+      } catch (e) {
+        alert("Signature rejected: " + (e.message || e));
+        return null;
+      }
+    }
+
+    function updateUI() {
+      const btn = document.getElementById("walletText");
+      const signBtn = document.getElementById("testSignBtn");
+      if (userAccount) {
+        if (btn) btn.innerText = userAccount.slice(0, 6) + "..." + userAccount.slice(-4);
+        if (signBtn) signBtn.classList.remove("hidden");
+      } else {
+        if (btn) btn.innerText = "Connect Rabby / Wallet";
+        if (signBtn) signBtn.classList.add("hidden");
+      }
+    }
+
+    let markets = [
+      {
+        id: 0,
+        question: "Will the US Federal Reserve announce an interest rate cut at their next FOMC meeting?",
+        resolution_url: "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm",
+        resolved: false,
+        outcome: "PENDING",
+        yes_pool: 6400,
+        no_pool: 4100
+      },
+      {
+        id: 1,
+        question: "Did SpaceX successfully recover the Super Heavy booster via the launch tower arms?",
+        resolution_url: "https://spaceflightnow.com/2024/starship-flight-test",
+        resolved: true,
+        outcome: "YES",
+        yes_pool: 9800,
+        no_pool: 1200
+      }
+    ];
+
+    function renderMarkets() {
+      const container = document.getElementById("marketsList");
+      if (!container) return;
+      container.innerHTML = "";
+
+      markets.forEach(m => {
+        const total = m.yes_pool + m.no_pool;
+        const yesPct = total > 0 ? Math.round((m.yes_pool / total) * 100) : 50;
+        const noPct = total > 0 ? (100 - yesPct) : 50;
+
+        const card = document.createElement("div");
+        card.className = "glass-card rounded-2xl p-5 flex flex-col justify-between border border-slate-800/80";
+        card.innerHTML = `
+          <div>
+            <div class="flex justify-between items-center mb-3">
+              <span class="text-xs mono text-slate-500">Market #${m.id}</span>
+              <span class="px-2 py-0.5 rounded text-xs ${m.resolved ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}">
+                ${m.resolved ? 'Resolved: ' + m.outcome : 'Live'}
+              </span>
+            </div>
+            <h3 class="font-bold text-slate-100 text-sm mb-3">${m.question}</h3>
+            <div class="mb-4">
+              <div class="flex justify-between text-xs mono text-slate-400 mb-1">
+                <span class="text-emerald-400">YES ${yesPct}% (${m.yes_pool} GEN)</span>
+                <span class="text-rose-400">NO ${noPct}% (${m.no_pool} GEN)</span>
+              </div>
+              <div class="w-full h-2 bg-slate-800 rounded flex overflow-hidden">
+                <div style="width: ${yesPct}%" class="bg-emerald-500"></div>
+                <div style="width: ${noPct}%" class="bg-rose-500"></div>
+              </div>
+            </div>
+            <p class="text-xs text-slate-400 bg-slate-900/60 p-2 rounded border border-slate-800 mb-4 truncate">
+              Source: ${m.resolution_url}
+            </p>
+          </div>
+          <div class="flex gap-2">
+            ${!m.resolved ? `
+              <button onclick="handleBet(${m.id}, 'YES')" class="flex-1 py-2 text-xs font-bold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white">
+                Sign & Bet (YES)
+              </button>
+              <button onclick="handleBet(${m.id}, 'NO')" class="flex-1 py-2 text-xs font-bold rounded-lg bg-slate-800 hover:bg-slate-700 text-rose-400">
+                Sign & Bet (NO)
+              </button>
+              <button onclick="handleSettle(${m.id})" class="px-3 py-2 text-xs font-semibold rounded-lg bg-slate-800 text-slate-300">
+                Settle
+              </button>
+            ` : `
+              <button onclick="requestSign('Claim Payout Market #' + ${m.id})" class="w-full py-2 text-xs font-bold rounded-lg bg-emerald-600 text-white">
+                Sign Claim Rewards
+              </button>
+            `}
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    async function handleBet(marketId, choice) {
+      const m = markets.find(x => x.id === marketId);
+      if (!m) return;
+      const sig = await requestSign("LexOracle Bet Order\nMarket: #" + m.id + "\nChoice: " + choice + "\nStake: 50 GEN");
+      if (sig) {
+        if (choice === "YES") m.yes_pool += 50;
+        else m.no_pool += 50;
+        renderMarkets();
+      }
+    }
+
+    async function handleSettle(marketId) {
+      const m = markets.find(x => x.id === marketId);
+      if (!m) return;
+      const sig = await requestSign("LexOracle Settle Request\nMarket: #" + m.id + "\nAction: gl.nondet.web.get + gl.nondet.exec_prompt");
+      if (sig) {
+        m.resolved = true;
+        m.outcome = "YES";
+        renderMarkets();
+      }
+    }
+
+    async function handleCreateMarket() {
+      const q = document.getElementById("newQuestion").value.trim();
+      const u = document.getElementById("newResolutionUrl").value.trim();
+      const c = document.getElementById("newCriteria").value.trim();
+      const b = parseInt(document.getElementById("newInitialBet").value) || 50;
+
+      if (!q || !u || !c) {
+        alert("Please fill in all market parameters.");
+        return;
+      }
+
+      const sig = await requestSign("LexOracle Deploy Market\nQuestion: " + q + "\nURL: " + u + "\nSeed: " + b + " GEN");
+      if (sig) {
+        markets.unshift({
+          id: markets.length,
+          question: q,
+          resolution_url: u,
+          resolved: false,
+          outcome: "PENDING",
+          yes_pool: b,
+          no_pool: b
+        });
+        closeModal("createMarketModal");
+        renderMarkets();
+      }
+    }
+
+    function openModal(id) { document.getElementById(id).classList.remove("hidden"); }
+    function closeModal(id) { document.getElementById(id).classList.add("hidden"); }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      renderMarkets();
+    });
+  </script>
+</body>
+</html>
